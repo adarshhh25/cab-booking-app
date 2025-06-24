@@ -15,6 +15,9 @@ yarn-debug.log
 .env.development.local
 .env.test.local
 .env.production.local
+config/env.ts
+config/secrets.ts
+config/keys.ts
 
 # IDE files
 .idea/
@@ -37,9 +40,14 @@ Thumbs.db
 web-build/
 
 # Android/iOS specific
-/android/app/build/
-/ios/Pods/
-/ios/build/
+/Frontend/android/app/build/
+/Frontend/ios/Pods/
+/Frontend/ios/build/
+
+# Backend specific
+/Backend/node_modules/
+/Backend/dist/
+/Backend/logs/
 
 # fastlane
 **/fastlane/report.xml
@@ -111,5 +119,6 @@ dist/
 # Logs
 logs
 *.log
+
 
 
