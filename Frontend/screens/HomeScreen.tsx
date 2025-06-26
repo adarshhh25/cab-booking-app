@@ -59,6 +59,9 @@ const HomeScreen = () => {
   const [conversationState, setConversationState] = useState('greeting');
   const [estimatedPrice, setEstimatedPrice] = useState<string | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
+  const [continuousConversation, setContinuousConversation] = useState(false);
+  const [conversationContext, setConversationContext] = useState<string>('');
+  const [autoTriggerEnabled, setAutoTriggerEnabled] = useState(false);
   const navigation = useNavigation();
   const slideAnim = useRef(new Animated.Value(-width * 0.7)).current;
 
@@ -100,16 +103,47 @@ const HomeScreen = () => {
         const success = await ttsService.initialize();
         if (success) {
           console.log('✅ TTS Service initialized successfully');
+
+          // Run diagnostic to check TTS health
+          const diagnostic = await ttsService.runFullDiagnostic();
+          console.log('🔍 TTS Diagnostic Report:\n', diagnostic);
+
         } else {
           console.error('❌ TTS Service initialization failed');
+
+          // Run diagnostic to understand why
+          const diagnostic = await ttsService.runFullDiagnostic();
+          console.log('🔍 TTS Diagnostic Report:\n', diagnostic);
+
           Alert.alert(
-            'TTS Warning',
-            'Text-to-speech initialization failed. Voice responses may not work. Please check your device TTS settings.',
-            [{ text: 'OK' }]
+            'TTS Setup Required',
+            'Text-to-speech needs setup. Check console for details.',
+            [
+              { text: 'OK' },
+              {
+                text: 'Test TTS',
+                onPress: () => testTTS()
+              }
+            ]
           );
         }
       } catch (error) {
         console.error('❌ TTS initialization error:', error);
+      }
+    };
+
+    const testTTS = async () => {
+      try {
+        console.log('🧪 Testing TTS...');
+        const success = await ttsService.speak('Testing text to speech. Can you hear this?');
+        Alert.alert(
+          'TTS Test',
+          success ? 'TTS test completed. Did you hear the voice?' : 'TTS test failed.',
+          [{ text: 'OK' }]
+        );
+      } catch (error) {
+        console.error('❌ TTS test error:', error);
+        Alert.alert('TTS Test Failed', 'Error: ' + error);
       }
     };
 
@@ -164,13 +198,33 @@ const HomeScreen = () => {
   };
 
   const onSpeechError = (error: string) => {
-    console.error('Speech error:', error);
+    console.error('Speech error in HomeScreen:', error);
     setListening(false);
 
-    // Only show alert for genuine errors that affect functionality
-    if (error && !error.includes('Didn\'t understand') && !error.includes('11/')) {
-      Alert.alert('Voice Error', error);
+    // List of errors that should be completely ignored
+    const ignorableErrorPatterns = [
+      'didn\'t understand',
+      '11/',
+      'no match',
+      'speech timeout',
+      'error_no_match',
+      'error_speech_timeout',
+      'error_client'
+    ];
+
+    // Check if this error should be ignored
+    const shouldIgnore = ignorableErrorPatterns.some(pattern =>
+      error.toLowerCase().includes(pattern.toLowerCase())
+    );
+
+    if (shouldIgnore) {
+      console.log('🔇 HomeScreen ignoring non-critical error:', error);
+      return;
     }
+
+    // Only show alert for genuine critical errors
+    console.log('❌ HomeScreen showing critical error:', error);
+    Alert.alert('Voice Error', error);
   };
 
   const handleConversation = async (input: string, addUserMessage: boolean = true) => {
@@ -189,8 +243,23 @@ const HomeScreen = () => {
         setChatMessages(prev => [...prev, userMessage]);
       }
 
-      // Send to backend API
-      const response = await apiService.sendChatMessage(input, voiceService.getUserId());
+      // Start auto-trigger mode on first interaction
+      if (!autoTriggerEnabled) {
+        console.log('🎯 Enabling auto-trigger mode - mic will auto-activate after each AI response');
+        setAutoTriggerEnabled(true);
+        setContinuousConversation(true);
+        setConversationContext(input);
+      } else {
+        // Update conversation context
+        setConversationContext(prev => prev + ' | ' + input);
+      }
+
+      // Send to backend API with conversation context
+      const contextualInput = continuousConversation ?
+        `Context: ${conversationContext} | Current: ${input}` : input;
+
+      const userId = voiceService.getUserId();
+      const response = await apiService.sendChatMessage(contextualInput, userId || 'anonymous');
 
       // Update booking info if provided
       if (response.bookingInfo) {
@@ -216,8 +285,12 @@ const HomeScreen = () => {
       // Speak the response
       await speakResponse(response.response);
 
-      // Handle booking confirmation
+      // Handle booking confirmation - end auto-trigger mode
       if (response.confirmation) {
+        console.log('✅ Booking confirmed, disabling auto-trigger mode');
+        setAutoTriggerEnabled(false);
+        setContinuousConversation(false);
+        setConversationContext('');
         handleBookingConfirmation(response.confirmation);
       }
 
@@ -257,13 +330,117 @@ const HomeScreen = () => {
           [{ text: 'OK' }]
         );
       }
+
+      // After speaking, automatically trigger mic button if auto-trigger is enabled
+      if (autoTriggerEnabled && !isBookingComplete()) {
+        console.log('🎤 Auto-triggering mic button after TTS response');
+        setTimeout(() => {
+          autoTriggerMicButton();
+        }, 1500); // Wait 1.5 seconds for TTS to finish
+      }
     } catch (error) {
       console.error('❌ TTS error in speakResponse:', error);
-      Alert.alert('TTS Error', 'Text-to-speech encountered an error: ' + error.message);
+      const errorMsg = error instanceof Error ? error.message : String(error);
+      Alert.alert('TTS Error', 'Text-to-speech encountered an error: ' + errorMsg);
+    }
+  };
+
+  // Auto-trigger mic button - simulates pressing the mic button
+  const autoTriggerMicButton = async () => {
+    try {
+      if (listening || isProcessing) {
+        console.log('⚠️ Already listening or processing, skipping auto-trigger');
+        return;
+      }
+
+      console.log('🎤 Auto-triggering mic button (simulating button press)...');
+
+      // Call the same function that the mic button calls
+      await startVoiceRecognition();
+
+    } catch (error) {
+      console.error('❌ Auto-trigger mic button error:', error);
+
+      // Retry after a delay if there's an error
+      if (autoTriggerEnabled && !isBookingComplete()) {
+        console.log('🔄 Retrying auto-trigger after error...');
+        setTimeout(() => {
+          autoTriggerMicButton();
+        }, 3000);
+      }
+    }
+  };
+
+  // Legacy function - keeping for backward compatibility
+  const autoTriggerMic = async () => {
+    await autoTriggerMicButton();
+  };
+
+  // Check if booking is complete
+  const isBookingComplete = (): boolean => {
+    return !!(bookingInfo.pickupLocation &&
+              bookingInfo.destination &&
+              bookingInfo.pickupTime &&
+              bookingInfo.passengers);
+  };
+
+  // Enhanced error handler for continuous conversation
+  const onContinuousConversationError = (error: string) => {
+    console.error('🎤 Continuous conversation error:', error);
+    setListening(false);
+
+    // List of errors that should be completely ignored in continuous mode
+    const ignorableErrorPatterns = [
+      'didn\'t understand',
+      '11/',
+      '8/',
+      'no match',
+      'speech timeout',
+      'busy',
+      'recognitionservice busy',
+      'error_no_match',
+      'error_speech_timeout',
+      'error_client',
+      'error_recognizer_busy'
+    ];
+
+    // Check if this error should be ignored
+    const shouldIgnore = ignorableErrorPatterns.some(pattern =>
+      error.toLowerCase().includes(pattern.toLowerCase())
+    );
+
+    if (shouldIgnore) {
+      console.log('🔇 Ignoring non-critical continuous conversation error:', error);
+
+      // Auto-retry for continuous conversation
+      if (continuousConversation && !isBookingComplete()) {
+        console.log('🔄 Auto-retrying after ignorable error...');
+        setTimeout(() => {
+          autoTriggerMic();
+        }, 2000);
+      }
+      return;
+    }
+
+    // For critical errors, show alert but still continue conversation
+    console.log('❌ Critical continuous conversation error:', error);
+    Alert.alert('Voice Error', error);
+
+    // Still try to continue conversation after critical error
+    if (continuousConversation && !isBookingComplete()) {
+      setTimeout(() => {
+        autoTriggerMic();
+      }, 4000);
     }
   };
 
   const handleBookingConfirmation = (confirmation: any) => {
+    // End auto-trigger and continuous conversation mode
+    setAutoTriggerEnabled(false);
+    setContinuousConversation(false);
+    setConversationContext('');
+    setListening(false);
+
     Alert.alert(
       'Booking Confirmed! 🎉',
       `Confirmation Code: ${confirmation.confirmationCode}\nDriver: ${confirmation.driver?.name}\nVehicle: ${confirmation.vehicle?.model} ${confirmation.vehicle?.color}\nEstimated Arrival: ${confirmation.estimatedArrival}`,
@@ -282,6 +459,11 @@ const HomeScreen = () => {
             });
             setConversationState('greeting');
             setEstimatedPrice(null);
+
+            // Ensure auto-trigger and continuous conversation is fully stopped
+            setAutoTriggerEnabled(false);
+            setContinuousConversation(false);
+            setConversationContext('');
           }
         }
       ]
@@ -426,7 +608,20 @@ const HomeScreen = () => {
         </TouchableOpacity>
       </View>
 
-      {listening && <Text style={styles.listeningText}>🎤 Listening...</Text>}
+      {listening && (
+        <Text style={[
+          styles.listeningText,
+          autoTriggerEnabled && styles.continuousListeningText
+        ]}>
+          {autoTriggerEnabled ? '🎯 Auto-Mic Active - Listening...' : '🎤 Listening...'}
+        </Text>
+      )}
+
+      {autoTriggerEnabled && !listening && !isProcessing && (
+        <Text style={styles.continuousConversationText}>
+          🔄 Auto-mic enabled - Mic will activate after each AI response
+        </Text>
+      )}
 
 
 
@@ -735,6 +930,21 @@ const styles = StyleSheet.create({
     color: 'transparent',
     textAlign: 'center',
     marginTop: 20,
+  },
+  continuousListeningText: {
+    color: '#4CAF50',
+    fontWeight: 'bold',
+  },
+  continuousConversationText: {
+    color: '#FF9800',
+    textAlign: 'center',
+    marginTop: 10,
+    fontSize: 14,
+    fontWeight: 'bold',
+    backgroundColor: 'rgba(255, 152, 0, 0.1)',
+    padding: 8,
+    borderRadius: 8,
+    marginHorizontal: 20,
   },
 });
 

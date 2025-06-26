@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -8,17 +8,72 @@ import {
   ScrollView,
   SafeAreaView,
 } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import Icon from 'react-native-vector-icons/MaterialIcons';
-import { useNavigation } from '@react-navigation/native';
+import { useNavigation, useRoute } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import type { RootStackParamList } from '../navigation/AppNavigator';
 
 type NavigationProp = NativeStackNavigationProp<RootStackParamList, 'Account'>;
 
+interface FavoriteLocation {
+  name: string;
+  address: string;
+  coordinates?: any;
+}
+
 const AccountScreen = () => {
   const navigation = useNavigation<NavigationProp>();
+  const route = useRoute();
   const insets = useSafeAreaInsets();
+  
+  const [favoriteLocations, setFavoriteLocations] = useState<FavoriteLocation[]>([
+    { name: 'Home', address: 'Your home address' },
+    { name: 'Work', address: 'Your work address' },
+  ]);
+
+  useEffect(() => {
+    loadFavoriteLocations();
+  }, []);
+
+  useEffect(() => {
+    // Check if a new favorite location was added
+    if (route.params?.newFavoriteLocation) {
+      const newLocation = route.params.newFavoriteLocation;
+      addFavoriteLocation(newLocation);
+    }
+  }, [route.params]);
+
+  const loadFavoriteLocations = async () => {
+    try {
+      const stored = await AsyncStorage.getItem('favoriteLocations');
+      if (stored) {
+        const locations = JSON.parse(stored);
+        setFavoriteLocations(locations);
+      }
+    } catch (error) {
+      console.error('Error loading favorite locations:', error);
+    }
+  };
+
+  const saveFavoriteLocations = async (locations: FavoriteLocation[]) => {
+    try {
+      await AsyncStorage.setItem('favoriteLocations', JSON.stringify(locations));
+    } catch (error) {
+      console.error('Error saving favorite locations:', error);
+    }
+  };
+
+  const addFavoriteLocation = (newLocation: FavoriteLocation) => {
+    const updatedLocations = [...favoriteLocations, newLocation];
+    setFavoriteLocations(updatedLocations);
+    saveFavoriteLocations(updatedLocations);
+  };
+
+  const handleAddFavoriteLocation = () => {
+    navigation.navigate('AddFavoriteLocation');
+  };
 
   return (
     <SafeAreaView style={[styles.container, { paddingTop: insets.top }]}>
@@ -32,22 +87,22 @@ const AccountScreen = () => {
       <ScrollView contentContainerStyle={styles.content}>
         {/* Profile Section */}
         <View style={styles.section}>
-  <Text style={styles.sectionTitle}>Profile</Text>
-  
-  <TouchableOpacity
-    style={styles.profileRow}
-    onPress={() => navigation.navigate('Profile')}
-  >
-    <Image
-      source={require('../assets/icons/user.png')}
-      style={styles.profileImage}
-    />
-    <View style={{ marginLeft: 15 }}>
-      <Text style={styles.name}>Adarsh Jha</Text>
-      <Text style={styles.rating}>4.98</Text>
-    </View>
-  </TouchableOpacity>
-</View>
+          <Text style={styles.sectionTitle}>Profile</Text>
+          
+          <TouchableOpacity
+            style={styles.profileRow}
+            onPress={() => navigation.navigate('Profile')}
+          >
+            <Image
+              source={require('../assets/icons/user.png')}
+              style={styles.profileImage}
+            />
+            <View style={{ marginLeft: 15 }}>
+              <Text style={styles.name}>Adarsh Jha</Text>
+              <Text style={styles.rating}>4.98</Text>
+            </View>
+          </TouchableOpacity>
+        </View>
 
         {/* Payment Methods */}
         <View style={styles.section}>
@@ -65,15 +120,22 @@ const AccountScreen = () => {
         {/* Favorite Locations */}
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Favorite Locations</Text>
-          <View style={styles.listItem}>
-            <Icon name="home" size={24} color="#fff" />
-            <Text style={styles.listText}>Home</Text>
-          </View>
-          <View style={styles.listItem}>
-            <Icon name="work" size={24} color="#fff" />
-            <Text style={styles.listText}>Work</Text>
-          </View>
-          <TouchableOpacity style={styles.addItem}>
+          {favoriteLocations.map((location, index) => (
+            <View key={index} style={styles.listItem}>
+              <Icon 
+                name={location.name === 'Home' ? 'home' : location.name === 'Work' ? 'work' : 'location-on'} 
+                size={24} 
+                color="#fff" 
+              />
+              <View style={styles.locationInfo}>
+                <Text style={styles.listText}>{location.name}</Text>
+                {location.address && (
+                  <Text style={styles.locationAddress}>{location.address}</Text>
+                )}
+              </View>
+            </View>
+          ))}
+          <TouchableOpacity style={styles.addItem} onPress={handleAddFavoriteLocation}>
             <Icon name="add-location" size={24} color="#fff" />
             <Text style={styles.listText}>Add Favorite Location</Text>
           </TouchableOpacity>
@@ -161,6 +223,15 @@ const styles = StyleSheet.create({
   addItem: {
     flexDirection: 'row',
     alignItems: 'center',
+  },
+  locationInfo: {
+    flex: 1,
+    marginLeft: 12,
+  },
+  locationAddress: {
+    color: '#666',
+    fontSize: 12,
+    marginTop: 2,
   },
 });
 

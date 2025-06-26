@@ -28,6 +28,31 @@
         }
       }
     },
+    "@react-native-community/geolocation": {
+      "root": "C:\\Users\\Dell\\Desktop\\Trip\\Frontend\\node_modules\\@react-native-community\\geolocation",
+      "name": "@react-native-community/geolocation",
+      "platforms": {
+        "ios": {
+          "podspecPath": "C:\\Users\\Dell\\Desktop\\Trip\\Frontend\\node_modules\\@react-native-community\\geolocation\\react-native-geolocation.podspec",
+          "version": "3.4.0",
+          "configurations": [],
+          "scriptPhases": []
+        },
+        "android": {
+          "sourceDir": "C:\\Users\\Dell\\Desktop\\Trip\\Frontend\\node_modules\\@react-native-community\\geolocation\\android",
+          "packageImportPath": "import com.reactnativecommunity.geolocation.GeolocationPackage;",
+          "packageInstance": "new GeolocationPackage()",
+          "buildTypes": [],
+          "libraryName": "RNCGeolocationSpec",
+          "componentDescriptors": [],
+          "cmakeListsPath": "C:/Users/Dell/Desktop/Trip/Frontend/node_modules/@react-native-community/geolocation/android/build/generated/source/codegen/jni/CMakeLists.txt",
+          "cxxModuleCMakeListsModuleName": null,
+          "cxxModuleCMakeListsPath": null,
+          "cxxModuleHeaderName": null,
+          "isPureCxxDependency": false
+        }
+      }
+    },
     "@react-native-voice/voice": {
       "root": "C:\\Users\\Dell\\Desktop\\Trip\\Frontend\\node_modules\\@react-native-voice\\voice",
       "name": "@react-native-voice/voice",
@@ -187,6 +212,33 @@
           "libraryName": "RNVectorIconsSpec",
           "componentDescriptors": [],
           "cmakeListsPath": "C:/Users/Dell/Desktop/Trip/Frontend/node_modules/react-native-vector-icons/android/build/generated/source/codegen/jni/CMakeLists.txt",
+          "cxxModuleCMakeListsModuleName": null,
+          "cxxModuleCMakeListsPath": null,
+          "cxxModuleHeaderName": null,
+          "isPureCxxDependency": false
+        }
+      }
+    },
+    "react-native-webview": {
+      "root": "C:\\Users\\Dell\\Desktop\\Trip\\Frontend\\node_modules\\react-native-webview",
+      "name": "react-native-webview",
+      "platforms": {
+        "ios": {
+          "podspecPath": "C:\\Users\\Dell\\Desktop\\Trip\\Frontend\\node_modules\\react-native-webview\\react-native-webview.podspec",
+          "version": "13.15.0",
+          "configurations": [],
+          "scriptPhases": []
+        },
+        "android": {
+          "sourceDir": "C:\\Users\\Dell\\Desktop\\Trip\\Frontend\\node_modules\\react-native-webview\\android",
+          "packageImportPath": "import com.reactnativecommunity.webview.RNCWebViewPackage;",
+          "packageInstance": "new RNCWebViewPackage()",
+          "buildTypes": [],
+          "libraryName": "RNCWebViewSpec",
+          "componentDescriptors": [
+            "RNCWebViewComponentDescriptor"
+          ],
+          "cmakeListsPath": "C:/Users/Dell/Desktop/Trip/Frontend/node_modules/react-native-webview/android/build/generated/source/codegen/jni/CMakeLists.txt",
           "cxxModuleCMakeListsModuleName": null,
           "cxxModuleCMakeListsPath": null,
           "cxxModuleHeaderName": null,

@@ -175,53 +175,93 @@ export class TTSService {
       return false;
     }
 
-    if (!this.isInitialized) {
-      console.warn('⚠️ TTS not initialized, attempting to initialize...');
-      const initialized = await this.initialize();
-      if (!initialized) {
-        console.error('❌ Failed to initialize TTS');
-        return false;
-      }
-    }
-
     try {
       console.log('🔊 Speaking:', text.substring(0, 50) + (text.length > 50 ? '...' : ''));
-      
-      // Stop any ongoing speech
-      await Tts.stop();
-      
-      // Wait a moment
-      await new Promise<void>(resolve => setTimeout(resolve, 100));
-      
-      // Prepare options
-      const ttsOptions = {
-        androidParams: {
-          KEY_PARAM_PAN: 0,
-          KEY_PARAM_VOLUME: 1.0,
-          KEY_PARAM_STREAM: 'STREAM_MUSIC',
-        },
-        rate: 0.5,
-        pitch: 1.0,
-        ...options
-      };
 
-      // Speak the text
-      await Tts.speak(text, ttsOptions);
-      
-      console.log('✅ TTS speak command sent');
-      return true;
-    } catch (error) {
-      console.error('❌ TTS speak error:', error);
-      
-      // Try fallback without options
-      try {
-        console.log('🔄 Trying fallback TTS...');
-        await Tts.speak(text);
-        return true;
-      } catch (fallbackError) {
-        console.error('❌ Fallback TTS failed:', fallbackError);
-        return false;
+      // Always try to initialize if not already done
+      if (!this.isInitialized) {
+        console.log('🔄 TTS not initialized, initializing now...');
+        await this.initialize();
       }
+
+      // Stop any ongoing speech first
+      try {
+        await Tts.stop();
+        await new Promise<void>(resolve => setTimeout(resolve, 200));
+      } catch (stopError) {
+        console.log('⚠️ Stop TTS warning:', stopError);
+      }
+
+      // Try multiple approaches for maximum compatibility
+      const approaches = [
+        // Approach 1: Simple speak (most compatible)
+        async () => {
+          console.log('🔊 Trying simple TTS speak...');
+          await Tts.speak(text);
+        },
+
+        // Approach 2: With rate setting
+        async () => {
+          console.log('🔊 Trying TTS with rate setting...');
+          await Tts.setDefaultRate(0.5);
+          await Tts.speak(text);
+        },
+
+        // Approach 3: With full configuration
+        async () => {
+          console.log('🔊 Trying TTS with full configuration...');
+          await Tts.setDefaultRate(0.5);
+          await Tts.setDefaultPitch(1.0);
+          await Tts.setDefaultLanguage('en-US');
+          await Tts.speak(text);
+        },
+
+        // Approach 4: Force with options (cast to any to bypass TypeScript)
+        async () => {
+          console.log('🔊 Trying TTS with forced options...');
+          const ttsOptions: any = {
+            androidParams: {
+              KEY_PARAM_PAN: 0,
+              KEY_PARAM_VOLUME: 1.0,
+              KEY_PARAM_STREAM: 'STREAM_MUSIC',
+            },
+            rate: 0.5,
+            pitch: 1.0,
+            ...options
+          };
+          await (Tts.speak as any)(text, ttsOptions);
+        }
+      ];
+
+      for (let i = 0; i < approaches.length; i++) {
+        try {
+          console.log(`🔊 Trying TTS approach ${i + 1}...`);
+          await approaches[i]();
+          console.log(`✅ TTS approach ${i + 1} succeeded`);
+          return true;
+        } catch (error) {
+          console.log(`⚠️ TTS approach ${i + 1} failed:`, error);
+          if (i === approaches.length - 1) {
+            throw error; // Re-throw the last error
+          }
+          // Wait a bit before trying next approach
+          await new Promise<void>(resolve => setTimeout(resolve, 300));
+        }
+      }
+
+      return false;
+    } catch (error) {
+      console.error('❌ All TTS approaches failed:', error);
+
+      // Final diagnostic attempt
+      try {
+        const diagnostic = await this.runFullDiagnostic();
+        console.log('🔍 TTS Diagnostic:', diagnostic);
+      } catch (diagError) {
+        console.error('❌ Diagnostic failed:', diagError);
+      }
+
+      return false;
     }
   }
 

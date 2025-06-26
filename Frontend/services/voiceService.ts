@@ -118,37 +118,58 @@ class VoiceService {
       Voice.onSpeechError = (e: any) => {
         console.error('Speech error event:', e);
 
-        // Filter out non-critical errors that don't affect functionality
-        const errorCode = e?.error?.code || e?.code;
+        // Extract error information
+        const errorCode = e?.error?.code || e?.code || '';
         const errorMessage = e?.error?.message || e?.message || 'Speech recognition error';
 
-        // Common non-critical error codes that can be ignored
-        const ignorableErrors = [
-          '11', // "Didn't understand" - but speech was actually captured
-          'ERROR_NO_MATCH',
-          'ERROR_SPEECH_TIMEOUT',
-          'ERROR_INSUFFICIENT_PERMISSIONS' // If already handled elsewhere
-        ];
+        console.log('🔍 Voice error details:', { errorCode, errorMessage, speechProcessed: this.speechProcessed });
 
-        // Check if this is an ignorable error OR if speech was already processed successfully
-        const isIgnorableError = ignorableErrors.some(code =>
-          errorCode === code ||
-          errorMessage.includes(code) ||
-          errorMessage.includes('Didn\'t understand')
-        );
-
-        if (isIgnorableError || this.speechProcessed) {
-          console.log('🔇 Ignoring non-critical voice error:', errorMessage, 'Speech processed:', this.speechProcessed);
-          // Don't call onError for these cases
+        // If speech was already successfully processed, ignore ALL errors
+        if (this.speechProcessed) {
+          console.log('🔇 Ignoring error - speech already processed successfully');
           return;
         }
 
-        // Only show error popup for genuine errors
+        // Common non-critical error codes that should be ignored
+        const ignorableErrors = [
+          '11', // "Didn't understand" - common false positive
+          '7',  // ERROR_NO_MATCH
+          '6',  // ERROR_SPEECH_TIMEOUT
+          '5',  // ERROR_CLIENT
+          'ERROR_NO_MATCH',
+          'ERROR_SPEECH_TIMEOUT',
+          'ERROR_CLIENT',
+          'Didn\'t understand'
+        ];
+
+        // Check if this is an ignorable error
+        const isIgnorableError = ignorableErrors.some(code => {
+          const codeStr = String(code).toLowerCase();
+          const errorCodeStr = String(errorCode).toLowerCase();
+          const errorMessageStr = errorMessage.toLowerCase();
+
+          return errorCodeStr === codeStr ||
+                 errorMessageStr.includes(codeStr) ||
+                 errorMessageStr.includes('didn\'t understand') ||
+                 errorMessageStr.includes('no match');
+        });
+
+        if (isIgnorableError) {
+          console.log('🔇 Ignoring non-critical voice error:', errorMessage);
+          return;
+        }
+
+        // Only show error popup for genuine critical errors
+        console.log('❌ Showing critical voice error:', errorMessage);
         onError(errorMessage);
       };
 
       Voice.onSpeechEnd = () => {
-        console.log('Speech recognition ended');
+        console.log('🔇 Speech recognition ended, processed:', this.speechProcessed);
+        // Reset the flag after a delay to allow error handler to check it first
+        setTimeout(() => {
+          this.speechProcessed = false;
+        }, 500);
       };
 
       Voice.onSpeechStart = () => {
