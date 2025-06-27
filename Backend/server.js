@@ -6,10 +6,14 @@ import compression from 'compression';
 import morgan from 'morgan';
 import dotenv from 'dotenv';
 
+// Import database
+import database from './config/database.js';
+
 // Import routes
 import chatRoutes from './routes/chat.js';
 import bookingRoutes from './routes/booking.js';
 import healthRoutes from './routes/health.js';
+import userRoutes from './routes/users.js';
 
 // Import middleware
 import { errorHandler } from './middleware/errorHandler.js';
@@ -63,6 +67,7 @@ app.use(express.static('public'));
 app.use('/api/chat', chatRoutes);
 app.use('/api/booking', bookingRoutes);
 app.use('/api/health', healthRoutes);
+app.use('/api/users', userRoutes);
 
 // Root endpoint
 app.get('/', (req, res) => {
@@ -72,7 +77,8 @@ app.get('/', (req, res) => {
     endpoints: {
       chat: '/api/chat',
       booking: '/api/booking',
-      health: '/api/health'
+      health: '/api/health',
+      users: '/api/users'
     }
   });
 });
@@ -88,19 +94,44 @@ app.use('*', (req, res) => {
   });
 });
 
-// Start server
-const server = app.listen(port, '0.0.0.0', () => {
-  console.log(`🚗 Cab Booking Server running on http://0.0.0.0:${port}`);
-  console.log(`📱 React Native can connect via: http://10.0.2.2:${port}`);
-  console.log(`🌍 Environment: ${process.env.NODE_ENV || 'development'}`);
-});
+// Initialize database connection
+async function startServer() {
+  try {
+    // Connect to MongoDB
+    await database.connect();
 
-// Graceful shutdown
-process.on('SIGTERM', () => {
-  console.log('SIGTERM received, shutting down gracefully');
-  server.close(() => {
-    console.log('Process terminated');
-  });
-});
+    // Start server
+    const server = app.listen(port, '0.0.0.0', () => {
+      console.log(`🚗 Cab Booking Server running on http://0.0.0.0:${port}`);
+      console.log(`📱 React Native can connect via: http://10.0.2.2:${port}`);
+      console.log(`🌍 Environment: ${process.env.NODE_ENV || 'development'}`);
+      console.log(`📊 MongoDB: Connected to ${process.env.MONGODB_DB_NAME || 'CabBooking'}`);
+    });
+
+    // Graceful shutdown
+    process.on('SIGTERM', async () => {
+      console.log('SIGTERM received, shutting down gracefully');
+      await database.disconnect();
+      server.close(() => {
+        console.log('Process terminated');
+      });
+    });
+
+    process.on('SIGINT', async () => {
+      console.log('SIGINT received, shutting down gracefully');
+      await database.disconnect();
+      server.close(() => {
+        console.log('Process terminated');
+      });
+    });
+
+  } catch (error) {
+    console.error('❌ Failed to start server:', error.message);
+    process.exit(1);
+  }
+}
+
+// Start the server
+startServer();
 
 export default app;

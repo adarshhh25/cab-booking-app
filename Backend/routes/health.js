@@ -1,5 +1,6 @@
 import express from 'express';
 import Groq from 'groq-sdk';
+import database from '../config/database.js';
 
 const router = express.Router();
 
@@ -50,6 +51,22 @@ router.get('/detailed', async (req, res) => {
     health.status = 'degraded';
   }
 
+  // Check MongoDB connectivity
+  try {
+    const dbHealth = await database.healthCheck();
+    health.services.mongodb = dbHealth;
+
+    if (dbHealth.status !== 'connected') {
+      health.status = 'degraded';
+    }
+  } catch (error) {
+    health.services.mongodb = {
+      status: 'error',
+      message: error.message
+    };
+    health.status = 'degraded';
+  }
+
   // Check memory usage
   const memUsage = process.memoryUsage();
   health.memory = {
@@ -64,9 +81,11 @@ router.get('/detailed', async (req, res) => {
 });
 
 // Readiness probe (for Kubernetes/Docker)
-router.get('/ready', (req, res) => {
+router.get('/ready', async (req, res) => {
   // Check if the application is ready to serve requests
-  const isReady = process.env.GROQ_API_KEY && process.uptime() > 5;
+  const isReady = process.env.GROQ_API_KEY &&
+                  process.uptime() > 5 &&
+                  database.isConnectionActive();
   
   if (isReady) {
     res.json({

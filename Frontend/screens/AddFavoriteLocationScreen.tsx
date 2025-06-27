@@ -38,6 +38,7 @@ const AddFavoriteLocationScreen = () => {
   const [locationName, setLocationName] = useState('');
   const [isLoading, setIsLoading] = useState(true);
   const [locationAddress, setLocationAddress] = useState('');
+  const [locationAddressDebounceTimeout, setLocationAddressDebounceTimeout] = useState<NodeJS.Timeout | null>(null);
 
   useEffect(() => {
     getCurrentLocation();
@@ -67,17 +68,22 @@ const AddFavoriteLocationScreen = () => {
         }
       }
 
-      // Get current position
+      // Get current position with high accuracy
       Geolocation.getCurrentPosition(
         async (position) => {
           const { latitude, longitude } = position.coords;
-          const location: Location = { latitude, longitude };
+          console.log('Got current location:', latitude, longitude);
           
           // Get address from coordinates (reverse geocoding)
           const address = await getAddressFromCoordinates(latitude, longitude);
-          location.address = address;
           
-          setCurrentLocation(location);
+          // Set current location with coordinates and address
+          setCurrentLocation({
+            latitude,
+            longitude,
+            address
+          });
+          
           setLocationAddress(address);
           setIsLoading(false);
         },
@@ -202,57 +208,195 @@ const AddFavoriteLocationScreen = () => {
     <html>
     <head>
         <meta charset="utf-8" />
-        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
         <title>Current Location Map</title>
         <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
         <style>
             body { margin: 0; padding: 0; }
-            #map { height: 100vh; width: 100vw; }
+            #map { position: absolute; top: 0; bottom: 0; width: 100%; height: 100%; }
         </style>
     </head>
     <body>
         <div id="map"></div>
         <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
         <script>
-            // Initialize the map
-            var map = L.map('map').setView([${latitude}, ${longitude}], 16);
+            // Initialize the map with default theme
+            var map = L.map('map', {
+                zoomControl: true,
+                attributionControl: true
+            }).setView([${latitude}, ${longitude}], 15);
 
-            // Add OpenStreetMap tiles
+            // Add default OpenStreetMap tiles
             L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-                attribution: '© OpenStreetMap contributors',
-                maxZoom: 19
+                maxZoom: 19,
+                attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
             }).addTo(map);
 
             // Add a marker for current location
-            var currentLocationMarker = L.marker([${latitude}, ${longitude}])
-                .addTo(map)
-                .bindPopup('<b>Your Current Location</b><br>Lat: ${latitude.toFixed(6)}<br>Lng: ${longitude.toFixed(6)}')
-                .openPopup();
+            var currentLocationMarker = L.marker([${latitude}, ${longitude}], {
+                draggable: true
+            }).addTo(map)
+            .bindPopup('<b>Your Location</b><br>Drag to adjust')
+            .openPopup();
 
-            // Add a red circle to highlight the area
+            // Add a blue circle to highlight the area
             var circle = L.circle([${latitude}, ${longitude}], {
-                color: 'red',
-                fillColor: '#f03',
+                color: '#2196F3',
+                fillColor: '#2196F3',
                 fillOpacity: 0.2,
                 radius: 100
             }).addTo(map);
 
-            // Disable zoom controls for better mobile experience
-            map.touchZoom.enable();
-            map.doubleClickZoom.enable();
-            map.scrollWheelZoom.enable();
-            map.boxZoom.enable();
-            map.keyboard.enable();
+            // Update circle when marker is dragged
+            currentLocationMarker.on('drag', function(e) {
+                circle.setLatLng(e.target.getLatLng());
+            });
+
+            // Send message to React Native when marker position changes
+            currentLocationMarker.on('dragend', function(e) {
+                var position = e.target.getLatLng();
+                window.ReactNativeWebView.postMessage(JSON.stringify({
+                    type: 'markerDrag',
+                    latlng: {
+                        lat: position.lat.toFixed(6),
+                        lng: position.lng.toFixed(6)
+                    }
+                }));
+            });
 
             // Add click handler for map
             map.on('click', function(e) {
-                // You can add functionality here if needed
-                console.log('Map clicked at: ' + e.latlng);
+                // Move marker to clicked position
+                currentLocationMarker.setLatLng(e.latlng);
+                circle.setLatLng(e.latlng);
+                
+                // Send message to React Native
+                window.ReactNativeWebView.postMessage(JSON.stringify({
+                    type: 'mapClick',
+                    latlng: {
+                        lat: e.latlng.lat.toFixed(6),
+                        lng: e.latlng.lng.toFixed(6)
+                    }
+                }));
             });
+
+            // Fix for WebView rendering issues
+            setTimeout(function() {
+                map.invalidateSize();
+            }, 100);
         </script>
     </body>
     </html>
     `;
+  };
+
+  const handleWebViewMessage = (event: WebViewMessageEvent) => {
+    try {
+      const data = JSON.parse(event.nativeEvent.data);
+      
+      if (data.type === 'mapClick' || data.type === 'markerDrag') {
+        // Update current location with the new coordinates
+        const newLat = parseFloat(data.latlng.lat);
+        const newLng = parseFloat(data.latlng.lng);
+        
+        if (!isNaN(newLat) && !isNaN(newLng)) {
+          setCurrentLocation(prev => ({
+            ...prev!,
+            latitude: newLat,
+            longitude: newLng
+          }));
+          
+          // Update coordinates text
+          getAddressFromCoordinates(newLat, newLng)
+            .then(address => {
+              setLocationAddress(address);
+            })
+            .catch(error => {
+              console.error('Error getting address:', error);
+            });
+        }
+      }
+    } catch (e) {
+      console.error('Error parsing WebView message:', e);
+    }
+  };
+
+  const handleLocationAddressChange = (text: string) => {
+    setLocationAddress(text);
+    
+    // Debounce the geocoding request to avoid too many API calls
+    if (locationAddressDebounceTimeout) {
+      clearTimeout(locationAddressDebounceTimeout);
+    }
+    
+    // Set a timeout to geocode the address after user stops typing
+    setLocationAddressDebounceTimeout(
+      setTimeout(() => {
+        geocodeAddress(text);
+      }, 1000)
+    );
+  };
+
+  const geocodeAddress = async (address: string) => {
+    if (!address.trim()) return;
+    
+    try {
+      console.log('Geocoding address:', address);
+      
+      // Use OpenStreetMap Nominatim for geocoding
+      const response = await fetch(
+        `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(address)}&limit=1`,
+        {
+          headers: {
+            'User-Agent': 'TripApp/1.0',
+            'Accept': 'application/json',
+          }
+        }
+      );
+      
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+      }
+      
+      const data = await response.json();
+      
+      if (data && data.length > 0) {
+        const { lat, lon, display_name } = data[0];
+        const latitude = parseFloat(lat);
+        const longitude = parseFloat(lon);
+        
+        if (!isNaN(latitude) && !isNaN(longitude)) {
+          console.log('Geocoded coordinates:', latitude, longitude);
+          
+          // Update current location
+          setCurrentLocation({
+            latitude,
+            longitude,
+            address: display_name
+          });
+          
+          // Update map if WebView is ready
+          if (webViewRef.current) {
+            webViewRef.current.injectJavaScript(`
+              // Update map view
+              map.setView([${latitude}, ${longitude}], 15);
+              
+              // Update marker position
+              currentLocationMarker.setLatLng([${latitude}, ${longitude}]);
+              
+              // Update circle position
+              circle.setLatLng([${latitude}, ${longitude}]);
+              
+              true;
+            `);
+          }
+        }
+      } else {
+        console.log('No results found for address:', address);
+      }
+    } catch (error) {
+      console.error('Geocoding error:', error);
+    }
   };
 
   return (
@@ -273,24 +417,22 @@ const AddFavoriteLocationScreen = () => {
             <Text style={styles.loadingText}>Getting your location...</Text>
           </View>
         ) : currentLocation ? (
-          <View style={styles.mapPlaceholder}>
-            <Icon name="location-on" size={64} color="#e53e3e" />
-            <Text style={styles.coordinatesText}>
-              {currentLocation.latitude.toFixed(6)}, {currentLocation.longitude.toFixed(6)}
-            </Text>
-            <Text style={styles.mapNote}>📍 Current Location Detected</Text>
-            <Text style={styles.mapNote}>Interactive map will load here</Text>
-            <TouchableOpacity
-              style={styles.mapButton}
-              onPress={() => {
-                // Future: Open full map view
-                Alert.alert('Map Feature', 'Interactive map coming soon!');
-              }}
-            >
-              <Icon name="map" size={24} color="#1e88e5" />
-              <Text style={styles.mapButtonText}>View on Map</Text>
-            </TouchableOpacity>
-          </View>
+          <WebView
+            ref={webViewRef}
+            source={{ html: generateLeafletHTML(currentLocation.latitude, currentLocation.longitude) }}
+            style={styles.webView}
+            originWhitelist={['*']}
+            javaScriptEnabled={true}
+            domStorageEnabled={true}
+            startInLoadingState={true}
+            renderLoading={() => (
+              <View style={styles.webViewLoading}>
+                <Icon name="map" size={48} color="#1e88e5" />
+                <Text style={styles.loadingText}>Loading map...</Text>
+              </View>
+            )}
+            onMessage={handleWebViewMessage}
+          />
         ) : (
           <View style={styles.errorContainer}>
             <Icon name="location-off" size={48} color="#666" />
@@ -312,8 +454,8 @@ const AddFavoriteLocationScreen = () => {
           <TextInput
             style={styles.input}
             value={locationAddress}
-            onChangeText={setLocationAddress}
-            placeholder="Current location address"
+            onChangeText={handleLocationAddressChange}
+            placeholder="Enter location address"
             placeholderTextColor="#666"
             multiline
           />
@@ -374,7 +516,9 @@ const styles = StyleSheet.create({
   },
   webView: {
     flex: 1,
-    backgroundColor: 'transparent',
+    backgroundColor: '#f5f5f5',
+    borderRadius: 12,
+    overflow: 'hidden',
   },
   webViewLoading: {
     position: 'absolute',
@@ -384,7 +528,8 @@ const styles = StyleSheet.create({
     bottom: 0,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: '#1a1a1a',
+    backgroundColor: '#f5f5f5',
+    borderRadius: 12,
   },
   loadingContainer: {
     flex: 1,
@@ -511,6 +656,64 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '500',
   },
+  inputLabelContainer: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 4,
+  },
 });
 
 export default AddFavoriteLocationScreen;
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

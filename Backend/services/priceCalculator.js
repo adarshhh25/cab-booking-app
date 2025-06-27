@@ -27,7 +27,10 @@ export class PriceCalculator {
 
     // Popular locations in Mumbai with coordinates
     this.locations = {
-      'malad': { lat: 19.1876, lng: 72.8454, area: 'western' },
+      'malad': { lat: 19.1876, lng: 72.8454, area: 'western'},
+      'mulund': { lat: 19.1765, lng: 72.9475, area: 'central'},
+      'nahur': { lat: 19.1553, lng: 72.9438, area: 'central'},
+      'bhandup': { lat: 19.1624, lng: 72.9376, area: 'central'},
       'malad west': { lat: 19.1876, lng: 72.8454, area: 'western' },
       'malad east': { lat: 19.1876, lng: 72.8654, area: 'western' },
       'andheri': { lat: 19.1136, lng: 72.8697, area: 'western' },
