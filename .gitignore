@@ -1,0 +1,143 @@
+# Environment variables and secrets
+.env
+.env.local
+.env.development
+.env.test
+.env.production
+.env.*
+config/env.ts
+config/secrets.ts
+config/keys.ts
+
+# Dependencies
+node_modules/
+npm-debug.log
+yarn-error.log
+yarn-debug.log
+package-lock.json
+yarn.lock
+
+# Build files
+/build/
+/dist/
+/out/
+/Frontend/build/
+/Frontend/dist/
+/Backend/dist/
+/Backend/build/
+
+# IDE files
+.idea/
+.vscode/*
+!.vscode/extensions.json
+!.vscode/settings.json
+!.vscode/tasks.json
+!.vscode/launch.json
+*.swp
+*.swo
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# React Native specific
+.expo/
+*.jks
+*.p8
+*.p12
+*.key
+*.mobileprovision
+*.orig.*
+web-build/
+
+# Android/iOS specific
+/Frontend/android/app/build/
+/Frontend/android/app/.cxx/
+/Frontend/android/app/release/
+/Frontend/android/app/debug/
+/Frontend/android/.gradle/
+/Frontend/android/build/
+/Frontend/android/local.properties
+/Frontend/android/captures/
+/Frontend/android/gradlew
+/Frontend/android/gradlew.bat
+/Frontend/android/gradle/
+/Frontend/ios/Pods/
+/Frontend/ios/build/
+/Frontend/ios/DerivedData/
+/Frontend/ios/Podfile.lock
+/Frontend/ios/*.xcworkspace
+/Frontend/ios/*.xcodeproj/xcuserdata/
+/Frontend/ios/*.xcodeproj/project.xcworkspace/xcuserdata/
+
+# Backend specific
+/Backend/node_modules/
+/Backend/dist/
+/Backend/logs/
+/Backend/coverage/
+/Backend/tmp/
+/Backend/.nyc_output/
+
+# Logs
+logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+lerna-debug.log*
+
+# Testing
+/coverage
+/Frontend/coverage
+/Backend/coverage
+.nyc_output
+
+# Temporary files
+.tmp/
+.temp/
+.cache/
+.parcel-cache/
+
+# Fastlane
+**/fastlane/report.xml
+**/fastlane/Preview.html
+**/fastlane/screenshots
+**/fastlane/test_output
+
+# Bundle artifact
+*.jsbundle
+
+# Ruby / CocoaPods
+**/ios/Pods/
+/vendor/bundle/
+
+# Temporary files created by Metro
+.metro-health-check*
+
+# Yarn
+.yarn/*
+!.yarn/patches
+!.yarn/plugins
+!.yarn/releases
+!.yarn/sdks
+!.yarn/versions
+
+# Local Netlify folder
+.netlify
+
+# Firebase
+.firebase/
+firebase-debug.log
+firestore-debug.log
+ui-debug.log
+
+# GraphQL generated files
+*.graphql.d.ts
+*.graphqls.d.ts
+
+# Misc
+.DS_Store
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
